@@ -1,0 +1,234 @@
+import tkinter as tk
+from tkinter import messagebox, ttk
+import json
+import os
+
+class ContactBookApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Contact Book Application")
+        self.root.geometry("600x500")
+        self.root.resizable(True, True)
+
+        self.data_file = "contacts_data.json"
+        if not os.path.exists(self.data_file):
+            with open(self.data_file, 'w') as f:
+                json.dump([], f)
+
+        self.contacts = self.load_contacts()
+
+        self.create_widgets()
+
+    def create_widgets(self):
+        self.header_frame = tk.Frame(self.root)
+        self.header_frame.pack(fill="x", padx=10, pady=5)
+
+        self.title_label = tk.Label(
+            self.header_frame, 
+            text="Contact Book", 
+            font=("Helvetica", 16, "bold")
+        )
+        self.title_label.pack(pady=10)
+
+        self.input_frame = tk.Frame(self.root)
+        self.input_frame.pack(fill="x", padx=10, pady=10)
+
+        tk.Label(self.input_frame, text="Name:").grid(row=0, column=0, padx=5, pady=5)
+        self.name_entry = tk.Entry(self.input_frame, width=30)
+        self.name_entry.grid(row=0, column=1, padx=5, pady=5)
+
+        tk.Label(self.input_frame, text="Phone:").grid(row=1, column=0, padx=5, pady=5)
+        self.phone_entry = tk.Entry(self.input_frame, width=30)
+        self.phone_entry.grid(row=1, column=1, padx=5, pady=5)
+
+        tk.Label(self.input_frame, text="Email:").grid(row=2, column=0, padx=5, pady=5)
+        self.email_entry = tk.Entry(self.input_frame, width=30)
+        self.email_entry.grid(row=2, column=1, padx=5, pady=5)
+
+        tk.Label(self.input_frame, text="Address:").grid(row=3, column=0, padx=5, pady=5)
+        self.address_entry = tk.Entry(self.input_frame, width=30)
+        self.address_entry.grid(row=3, column=1, padx=5, pady=5)
+
+        self.add_button = tk.Button(
+            self.input_frame, 
+            text="Add Contact", 
+            command=self.add_contact
+        )
+        self.add_button.grid(row=4, column=0, columnspan=2, pady=10)
+
+        self.search_button = tk.Button(
+            self.input_frame, 
+            text="Search Contact", 
+            command=self.search_contact
+        )
+        self.search_button.grid(row=5, column=0, columnspan=2, pady=5)
+
+        self.list_frame = tk.Frame(self.root)
+        self.list_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        self.tree = ttk.Treeview(
+            self.list_frame, 
+            columns=("Name", "Phone"), 
+            show="headings", 
+            selectmode="browse"
+        )
+        self.tree.heading("Name", text="Name")
+        self.tree.heading("Phone", text="Phone")
+
+        self.tree.column("Name", width=200, anchor="w")
+        self.tree.column("Phone", width=100, anchor="w")
+
+        self.scrollbar = ttk.Scrollbar(
+            self.list_frame, 
+            orient="vertical", 
+            command=self.tree.yview
+        )
+        self.tree.configure(yscrollcommand=self.scrollbar.set)
+
+        self.tree.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
+
+        self.buttons_frame = tk.Frame(self.root)
+        self.buttons_frame.pack(fill="x", padx=10, pady=10)
+
+        self.update_button = tk.Button(
+            self.buttons_frame, 
+            text="Update Contact", 
+            command=self.update_contact
+        )
+        self.update_button.pack(side="left", padx=5)
+
+        self.delete_button = tk.Button(
+            self.buttons_frame, 
+            text="Delete Contact", 
+            command=self.delete_contact
+        )
+        self.delete_button.pack(side="left", padx=5)
+
+        self.clear_button = tk.Button(
+            self.buttons_frame, 
+            text="Clear All", 
+            command=self.clear_all
+        )
+        self.clear_button.pack(side="right", padx=5)
+
+        self.load_contacts_to_tree()
+
+        self.tree.bind("<Double-1>", self.load_contact_details)
+
+    def load_contacts(self):
+        try:
+            with open(self.data_file, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, FileNotFoundError):
+            return []
+
+    def save_contacts(self):
+        with open(self.data_file, 'w') as f:
+            json.dump(self.contacts, f)
+
+    def load_contacts_to_tree(self):
+        self.tree.delete(*self.tree.get_children())
+        for contact in self.contacts:
+            self.tree.insert("", "end", values=(contact["name"], contact["phone"]))
+
+    def add_contact(self):
+        name = self.name_entry.get().strip()
+        phone = self.phone_entry.get().strip()
+        email = self.email_entry.get().strip()
+        address = self.address_entry.get().strip()
+
+        if name and phone:
+            new_contact = {
+                "name": name,
+                "phone": phone,
+                "email": email,
+                "address": address
+            }
+            self.contacts.append(new_contact)
+            self.save_contacts()
+            self.load_contacts_to_tree()
+            self.clear_entries()
+        else:
+            messagebox.showwarning("Warning", "Name and Phone are required fields.")
+
+    def search_contact(self):
+        search_term = self.name_entry.get().strip()
+        if search_term:
+            results = [contact for contact in self.contacts if search_term.lower() in contact["name"].lower() or search_term in contact["phone"]]
+            self.tree.delete(*self.tree.get_children())
+            for contact in results:
+                self.tree.insert("", "end", values=(contact["name"], contact["phone"]))
+        else:
+            messagebox.showwarning("Warning", "Please enter a name or phone number to search.")
+
+    def load_contact_details(self, event):
+        selected_item = self.tree.selection()
+        if selected_item:
+            item = self.tree.item(selected_item)
+            name = item["values"][0]
+            contact = next((c for c in self.contacts if c["name"] == name), None)
+            if contact:
+                self.name_entry.delete(0, tk.END)
+                self.name_entry.insert(0, contact["name"])
+                self.phone_entry.delete(0, tk.END)
+                self.phone_entry.insert(0, contact["phone"])
+                self.email_entry.delete(0, tk.END)
+                self.email_entry.insert(0, contact["email"])
+                self.address_entry.delete(0, tk.END)
+                self.address_entry.insert(0, contact["address"])
+
+    def update_contact(self):
+        selected_item = self.tree.selection()
+        if selected_item:
+            name = self.name_entry.get().strip()
+            phone = self.phone_entry.get().strip()
+            email = self.email_entry.get().strip()
+            address = self.address_entry.get().strip()
+
+            if name and phone:
+                item = self.tree.item(selected_item)
+                old_name = item["values"][0]
+                contact = next((c for c in self.contacts if c["name"] == old_name), None)
+                if contact:
+                    contact["name"] = name
+                    contact["phone"] = phone
+                    contact["email"] = email
+                    contact["address"] = address
+                    self.save_contacts()
+                    self.load_contacts_to_tree()
+                    self.clear_entries()
+            else:
+                messagebox.showwarning("Warning", "Name and Phone are required fields.")
+        else:
+            messagebox.showwarning("Warning", "Please select a contact to update.")
+
+    def delete_contact(self):
+        selected_item = self.tree.selection()
+        if selected_item:
+            if messagebox.askyesno("Confirm", "Are you sure you want to delete this contact?"):
+                item = self.tree.item(selected_item)
+                name = item["values"][0]
+                self.contacts = [c for c in self.contacts if c["name"] != name]
+                self.save_contacts()
+                self.load_contacts_to_tree()
+                self.clear_entries()
+        else:
+            messagebox.showwarning("Warning", "Please select a contact to delete.")
+
+    def clear_entries(self):
+        self.name_entry.delete(0, tk.END)
+        self.phone_entry.delete(0, tk.END)
+        self.email_entry.delete(0, tk.END)
+        self.address_entry.delete(0, tk.END)
+
+    def clear_all(self):
+        if messagebox.askyesno("Confirm", "Are you sure you want to clear all contacts?"):
+            self.contacts = []
+            self.save_contacts()
+            self.load_contacts_to_tree()
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = ContactBookApp(root)
+    root.mainloop()
